@@ -149,9 +149,9 @@ class FrameToFrameOpticalFlow : public OpticalFlowBase {
                           }
                         });
 
-      OpticalFlowResult::Ptr new_transforms;
-      new_transforms.reset(new OpticalFlowResult);
-      new_transforms->observations.resize(calib.intrinsics.size());
+      std::vector<Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>>
+      new_observations;
+      ->observations.resize(calib.intrinsics.size());
       new_transforms->t_ns = t_ns;
 
       for (size_t i = 0; i < calib.intrinsics.size(); i++) {

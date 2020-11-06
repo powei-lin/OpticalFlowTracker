@@ -55,6 +55,7 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
     std::vector<ImageData> imgData;
     MatToImageData(imgs, imgData);
     if (!initialized) {
+      observations.resize(cam_num);
       pyramid.reset(new std::vector<ManagedImagePyr<u_int16_t>>);
       pyramid->resize(cam_num);
       tbb::parallel_for(tbb::blocked_range<size_t>(0, cam_num),
@@ -65,11 +66,40 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
                           }
                         });
 
-      // addPoints();
+      addPoints();
       // filterPoints();
       initialized = true;
     } else {
+
+      old_pyramid = pyramid;
+
+      pyramid.reset(new std::vector<vo::ManagedImagePyr<u_int16_t>>);
+      pyramid->resize(cam_num);
+      tbb::parallel_for(tbb::blocked_range<size_t>(0, cam_num),
+                        [&](const tbb::blocked_range<size_t>& r) {
+                          for (size_t i = r.begin(); i != r.end(); ++i) {
+                            pyramid->at(i).setFromImage(
+                                *imgData[i].img,
+                                optical_flow_levels);
+                          }
+                        });
+
+      std::vector<Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>>
+      new_observations(cam_num);
+
+      for (size_t i = 0; i < cam_num; i++) {
+        trackPoints(old_pyramid->at(i), pyramid->at(i),
+                    observations[i],
+                    new_observations[i]);
+      }
+
+      observations = new_observations;
+
+      addPoints();
+      // filterPoints();
     }
+
+    frame_counter++;
   }
 
   void trackPoints(const vo::ManagedImagePyr<u_int16_t>& pyr_1,

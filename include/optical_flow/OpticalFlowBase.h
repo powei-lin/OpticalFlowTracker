@@ -12,6 +12,8 @@ class OpticalFlowBase {
 
  protected:
   static constexpr int EDGE_THRESHOLD = 19;
+  std::vector<Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>>
+      observations;
   void detectKeypoints(
       const Image<const uint16_t>& img_raw, KeypointsData& kd,
       int PATCH_SIZE, int num_points_cell,

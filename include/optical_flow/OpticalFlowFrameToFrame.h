@@ -72,40 +72,156 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
     }
   }
 
+  void trackPoints(const vo::ManagedImagePyr<u_int16_t>& pyr_1,
+                   const vo::ManagedImagePyr<u_int16_t>& pyr_2,
+                   const Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>&
+                       transform_map_1,
+                   Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>&
+                       transform_map_2) const {
+    size_t num_points = transform_map_1.size();
+
+    std::vector<KeypointId> ids;
+    Eigen::aligned_vector<Eigen::AffineCompact2f> init_vec;
+
+    ids.reserve(num_points);
+    init_vec.reserve(num_points);
+
+    for (const auto& kv : transform_map_1) {
+      ids.push_back(kv.first);
+      init_vec.push_back(kv.second);
+    }
+
+    tbb::concurrent_unordered_map<KeypointId, Eigen::AffineCompact2f,
+                                  std::hash<KeypointId>>
+        result;
+
+    auto compute_func = [&](const tbb::blocked_range<size_t>& range) {
+      for (size_t r = range.begin(); r != range.end(); ++r) {
+        const KeypointId id = ids[r];
+
+        const Eigen::AffineCompact2f& transform_1 = init_vec[r];
+        Eigen::AffineCompact2f transform_2 = transform_1;
+
+        bool valid = trackPoint(pyr_1, pyr_2, transform_1, transform_2);
+
+        if (valid) {
+          Eigen::AffineCompact2f transform_1_recovered = transform_2;
+
+          valid = trackPoint(pyr_2, pyr_1, transform_2, transform_1_recovered);
+
+          if (valid) {
+            Scalar dist2 = (transform_1.translation() -
+                            transform_1_recovered.translation())
+                               .squaredNorm();
+
+            if (dist2 < optical_flow_max_recovered_dist2) {
+              result[id] = transform_2;
+            }
+          }
+        }
+      }
+    };
+
+    tbb::blocked_range<size_t> range(0, num_points);
+
+    tbb::parallel_for(range, compute_func);
+    // compute_func(range);
+
+    transform_map_2.clear();
+    transform_map_2.insert(result.begin(), result.end());
+  }
+
+  inline bool trackPoint(const vo::ManagedImagePyr<uint16_t>& old_pyr,
+                         const vo::ManagedImagePyr<uint16_t>& pyr,
+                         const Eigen::AffineCompact2f& old_transform,
+                         Eigen::AffineCompact2f& transform) const {
+    bool patch_valid = true;
+
+    transform.linear().setIdentity();
+
+    for (int level = optical_flow_levels; level >= 0 && patch_valid;
+         level--) {
+      const Scalar scale = 1 << level;
+
+      transform.translation() /= scale;
+
+      PatchT p(old_pyr.lvl(level), old_transform.translation() / scale);
+
+      // Perform tracking on current level
+      patch_valid &= trackPointAtLevel(pyr.lvl(level), p, transform);
+
+      transform.translation() *= scale;
+    }
+
+    transform.linear() = old_transform.linear() * transform.linear();
+
+    return patch_valid;
+  }
+
+  inline bool trackPointAtLevel(const Image<const u_int16_t>& img_2,
+                                const PatchT& dp,
+                                Eigen::AffineCompact2f& transform) const {
+    bool patch_valid = true;
+
+    for (int iteration = 0;
+         patch_valid && iteration < optical_flow_max_iterations;
+         iteration++) {
+      typename PatchT::VectorP res;
+
+      typename PatchT::Matrix2P transformed_pat =
+          transform.linear().matrix() * PatchT::pattern2;
+      transformed_pat.colwise() += transform.translation();
+
+      bool valid = dp.residual(img_2, transformed_pat, res);
+
+      if (valid) {
+        Vector3 inc = -dp.H_se2_inv_J_se2_T * res;
+        transform *= SE2::exp(inc).matrix();
+
+        const int filter_margin = 2;
+
+        if (!img_2.InBounds(transform.translation(), filter_margin))
+          patch_valid = false;
+      } else {
+        patch_valid = false;
+      }
+    }
+
+    return patch_valid;
+  }
   void addPoints() {
     Eigen::aligned_vector<Eigen::Vector2d> pts0;
 
     for (const auto& kv : observations.at(0)) {
-      std::cout << kv.second.translation() << std::endl;
-      // pts0.emplace_back(kv.second.translation().cast<double>());
+      pts0.emplace_back(kv.second.translation().template cast<double>());
     }
 
     KeypointsData kd;
 
-    // detectKeypoints(pyramid->at(0).lvl(0), kd, optical_flow_detection_grid_size,
-    //                 1, pts0);
+    detectKeypoints(pyramid->at(0).lvl(0), kd, optical_flow_detection_grid_size,
+                    1, pts0);
 
-    // Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f> new_poses0,
-    //     new_poses1;
+    Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f> new_poses0,
+        new_poses1;
 
-    // for (size_t i = 0; i < kd.corners.size(); i++) {
-    //   Eigen::AffineCompact2f transform;
-    //   transform.setIdentity();
-    //   transform.translation() = kd.corners[i].cast<Scalar>();
+    for (size_t i = 0; i < kd.corners.size(); i++) {
+      Eigen::AffineCompact2f transform;
+      transform.setIdentity();
+      transform.translation() = kd.corners[i].cast<Scalar>();
 
-    //   observations.at(0)[last_keypoint_id] = transform;
-    //   new_poses0[last_keypoint_id] = transform;
+      observations.at(0)[last_keypoint_id] = transform;
+      new_poses0[last_keypoint_id] = transform;
 
-    //   last_keypoint_id++;
-    // }
+      last_keypoint_id++;
+    }
 
-    // if (cam_num > 1) {
-    //   trackPoints(pyramid->at(0), pyramid->at(1), new_poses0, new_poses1);
+    if (cam_num > 1) {
+      trackPoints(pyramid->at(0), pyramid->at(1), new_poses0, new_poses1);
 
-    //   for (const auto& kv : new_poses1) {
-    //     transforms->observations.at(1).emplace(kv);
-    //   }
-    // }
+      for (const auto& kv : new_poses1) {
+        observations.at(1).emplace(kv);
+      }
+    }
   }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -125,8 +241,6 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
   const uint8_t cam_num;
 
   //[cam][point id]
-  std::vector<Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>>
-      observations;
   // OpticalFlowResult::Ptr transforms;
   std::shared_ptr<std::vector<ManagedImagePyr<u_int16_t>>> old_pyramid, pyramid;
 

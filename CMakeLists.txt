@@ -11,6 +11,7 @@ find_package(OpenCV REQUIRED)
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/thirdparty/Sophus)
 
 include(CTest)
 enable_testing()

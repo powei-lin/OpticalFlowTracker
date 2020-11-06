@@ -40,6 +40,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "image/image.h"
 
+namespace vo {
+
 /// @brief Image pyramid that stores levels as mipmap
 ///
 /// \image html mipmap.jpeg
@@ -194,3 +196,5 @@ class ManagedImagePyr {
   size_t orig_w;          ///< Width of the original image (level 0)
   ManagedImage<T> image;  ///< Pyramid image stored as a mipmap
 };
+
+}  // namespace vo

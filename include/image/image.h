@@ -71,6 +71,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <Eigen/Dense>
 
+namespace vo {
 
 /// @brief Helper class for copying objects.
 template <typename T>
@@ -109,9 +110,7 @@ struct Image {
 
   inline bool IsValid() const { return ptr != 0; }
 
-  inline bool IsContiguous() const {
-    return w * sizeof(T) == pitch;
-  }
+  inline bool IsContiguous() const { return w * sizeof(T) == pitch; }
 
   //////////////////////////////////////////////////////
   // Iterators
@@ -133,7 +132,6 @@ struct Image {
 
   template <typename UnaryOperation>
   inline void Transform(UnaryOperation unary_op) {
-
     for (size_t y = 0; y < h; ++y) {
       T* el = RowPtr(y);
       const T* el_end = el + w;
@@ -174,9 +172,7 @@ struct Image {
   //////////////////////////////////////////////////////
 
   template <typename BinaryOperation>
-  inline T Accumulate(const T init,
-                                         BinaryOperation binary_op) {
-
+  inline T Accumulate(const T init, BinaryOperation binary_op) {
     T val = init;
     for (size_t y = 0; y < h; ++y) {
       T* el = RowPtr(y);
@@ -189,7 +185,6 @@ struct Image {
   }
 
   std::pair<T, T> MinMax() const {
-
     std::pair<T, T> minmax(std::numeric_limits<T>::max(),
                            std::numeric_limits<T>::lowest());
     for (size_t r = 0; r < h; ++r) {
@@ -219,21 +214,15 @@ struct Image {
   // Direct Pixel Access
   //////////////////////////////////////////////////////
 
-  inline T* RowPtr(size_t y) {
-    return (T*)((unsigned char*)(ptr) + y * pitch);
-  }
+  inline T* RowPtr(size_t y) { return (T*)((unsigned char*)(ptr) + y * pitch); }
 
   inline const T* RowPtr(size_t y) const {
     return (T*)((unsigned char*)(ptr) + y * pitch);
   }
 
-  inline T& operator()(size_t x, size_t y) {
-    return RowPtr(y)[x];
-  }
+  inline T& operator()(size_t x, size_t y) { return RowPtr(y)[x]; }
 
-  inline const T& operator()(size_t x, size_t y) const {
-    return RowPtr(y)[x];
-  }
+  inline const T& operator()(size_t x, size_t y) const { return RowPtr(y)[x]; }
 
   template <typename TVec>
   inline T& operator()(const TVec& p) {
@@ -245,13 +234,9 @@ struct Image {
     return RowPtr(p[1])[p[0]];
   }
 
-  inline T& operator[](size_t ix) {
-    return ptr[ix];
-  }
+  inline T& operator[](size_t ix) { return ptr[ix]; }
 
-  inline const T& operator[](size_t ix) const {
-    return ptr[ix];
-  }
+  inline const T& operator[](size_t ix) const { return ptr[ix]; }
 
   //////////////////////////////////////////////////////
   // Interpolated Pixel Access
@@ -355,17 +340,14 @@ struct Image {
     return 0 <= x && x < (int)w && 0 <= y && y < (int)h;
   }
 
-  inline bool InBounds(float x, float y,
-                                          float border) const {
+  inline bool InBounds(float x, float y, float border) const {
     return border <= x && x < (w - border - 1) && border <= y &&
            y < (h - border - 1);
   }
 
   template <typename Derived>
-  inline bool InBounds(
-      const Eigen::MatrixBase<Derived>& p,
-      const typename Derived::Scalar border) const {
-
+  inline bool InBounds(const Eigen::MatrixBase<Derived>& p,
+                       const typename Derived::Scalar border) const {
     using Scalar = typename Derived::Scalar;
 
     Scalar offset(0);
@@ -381,24 +363,18 @@ struct Image {
   // Obtain slices / subimages
   //////////////////////////////////////////////////////
 
-  inline const Image<const T> SubImage(size_t x, size_t y,
-                                                          size_t width,
-                                                          size_t height) const {
+  inline const Image<const T> SubImage(size_t x, size_t y, size_t width,
+                                       size_t height) const {
     return Image<const T>(RowPtr(y) + x, width, height, pitch);
   }
 
-  inline Image<T> SubImage(size_t x, size_t y, size_t width,
-                                              size_t height) {
+  inline Image<T> SubImage(size_t x, size_t y, size_t width, size_t height) {
     return Image<T>(RowPtr(y) + x, width, height, pitch);
   }
 
-  inline Image<T> Row(int y) const {
-    return SubImage(0, y, w, 1);
-  }
+  inline Image<T> Row(int y) const { return SubImage(0, y, w, 1); }
 
-  inline Image<T> Col(int x) const {
-    return SubImage(x, 0, 1, h);
-  }
+  inline Image<T> Col(int x) const { return SubImage(x, 0, 1, h); }
 
   //////////////////////////////////////////////////////
   // Data mangling
@@ -579,3 +555,4 @@ class ManagedImage : public Image<T> {
   }
 };
 
+}  // namespace vo

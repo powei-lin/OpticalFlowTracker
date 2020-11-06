@@ -9,6 +9,7 @@
 #include <tbb/parallel_for.h>
 #include <opencv2/highgui.hpp>
 #include <sophus/se2.hpp>
+#include <sophus/se3.hpp>
 
 #include "image/ImageData.h"
 #include "optical_flow/OpticalFlowBase.h"
@@ -34,18 +35,25 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
   typedef Eigen::Matrix<Scalar, 4, 4> Matrix4;
 
   typedef Sophus::SE2<Scalar> SE2;
+  typedef Sophus::SE3<Scalar> SE3;
 
-  OpticalFlowFrameToFrame()
-      : t_ns(-1), frame_counter(0), last_keypoint_id(0), cam_num(1) {
+  OpticalFlowFrameToFrame(uint8_t _cam_num = 1, const SE3 &_T_0_1 = SE3())
+      : t_ns(-1), frame_counter(0), last_keypoint_id(0), cam_num(_cam_num), T_0_1(_T_0_1) {
     // input_queue.set_capacity(10);
 
-    patch_coord = PatchT::pattern2.template cast<float>();
+    // patch_coord = PatchT::pattern2.template cast<float>();
 
     // if (calib.intrinsics.size() > 1) {
     //   Eigen::Matrix4d Ed;
     //   Sophus::SE3d T_i_j = calib.T_i_c[0].inverse() * calib.T_i_c[1];
-    //   computeEssential(T_i_j, Ed);
-    //   E = Ed.cast<Scalar>();
+      // computeEssential(T_i_j, Ed);
+      // E.setZero();
+      
+  // const Eigen::Vector3d t_0_1 = T_0_1.translation();
+  // const Eigen::Matrix3d R_0_1 = T_0_1.rotationMatrix();
+    E.template topLeftCorner<3, 3>() = Sophus::SO3<Scalar>::hat(T_0_1.translation().normalized()) * T_0_1.rotationMatrix();
+  // E.topLeftCorner<3, 3>() = Sophus::SO3d::hat(t_0_1.normalized()) * R_0_1;
+      // E = Ed.cast<Scalar>();
     // }
 
     // processing_thread.reset(
@@ -96,10 +104,12 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
       observations = new_observations;
 
 #ifdef VO_DEBUG
+    cv::Mat allcamshow;
+    for(int cam = 0 ; cam < cam_num;cam++){
       cv::Mat img_show;
-      cv::cvtColor(imgs[0], img_show, cv::COLOR_GRAY2BGR);
+      cv::cvtColor(imgs[cam], img_show, cv::COLOR_GRAY2BGR);
       std::uniform_int_distribution<int> dis(1, 255);
-      for (const auto& ob : observations.at(0)) {
+      for (const auto& ob : observations.at(cam)) {
         std::mt19937 gen(ob.first);
         cv::Scalar color(dis(gen), dis(gen), dis(gen));
         cv::Point2f pt(ob.second.translation().x(),
@@ -107,7 +117,14 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
         cv::circle(img_show, pt, 3, color, -1);
         cv::putText(img_show, std::to_string(ob.first), pt, 1, 1, color);
       }
-      cv::imshow("add", img_show);
+      if(cam == 0){
+        allcamshow = img_show;
+      }
+      else{
+        cv::hconcat(allcamshow, img_show, allcamshow);
+      }
+    }
+    cv::imshow("add", allcamshow);
 #endif
 
       addPoints();
@@ -280,6 +297,8 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
   KeypointId last_keypoint_id;
 
   bool initialized = false;
+
+  const SE3 T_0_1;
 
   const uint8_t cam_num;
 

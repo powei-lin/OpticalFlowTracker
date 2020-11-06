@@ -19,34 +19,38 @@ nlohmann::json fromFile(const string &filename) {
   return j;
 }
 
-Sophus::SE3d T_1_0(const nlohmann::json &j){
-  Sophus::SE3d T_imu_0;
+Sophus::SE3f T_1_0(const nlohmann::json &j){
+  Sophus::SE3f T_imu_0;
   auto &cam0 = j.at("value0").at("T_imu_cam").at(0);
-  T_imu_0.translation() = Eigen::Vector3d(cam0.at("px"),cam0.at("py"),cam0.at("pz"));
-  T_imu_0.so3().setQuaternion(Eigen::Quaterniond(cam0.at("qw"),cam0.at("qx"),cam0.at("qy"),cam0.at("qz")));
-  Sophus::SE3d T_imu_1;
+  T_imu_0.translation() = Eigen::Vector3f(cam0.at("px"),cam0.at("py"),cam0.at("pz"));
+  T_imu_0.so3().setQuaternion(Eigen::Quaternionf(cam0.at("qw"),cam0.at("qx"),cam0.at("qy"),cam0.at("qz")));
+  Sophus::SE3f T_imu_1;
   auto &cam1 = j.at("value0").at("T_imu_cam").at(1);
-  T_imu_1.translation() = Eigen::Vector3d(cam1.at("px"),cam1.at("py"),cam1.at("pz"));
-  T_imu_1.so3().setQuaternion(Eigen::Quaterniond(cam1.at("qw"),cam1.at("qx"),cam1.at("qy"),cam1.at("qz")));
+  T_imu_1.translation() = Eigen::Vector3f(cam1.at("px"),cam1.at("py"),cam1.at("pz"));
+  T_imu_1.so3().setQuaternion(Eigen::Quaternionf(cam1.at("qw"),cam1.at("qx"),cam1.at("qy"),cam1.at("qz")));
   return T_imu_1.inverse() * T_imu_0;
 }
 
 int main() {
-  constexpr char dataset[] =
+  constexpr char dataset0[] =
       "/home/powei/Documents/dataset/EuRoC/V1_01_easy/mav0/cam0/data/*.png";
+  constexpr char dataset1[] =
+      "/home/powei/Documents/dataset/EuRoC/V1_01_easy/mav0/cam1/data/*.png";
   // constexpr char dataset[] = "/Users/powei/Documents/mav0/cam0/data/*.png";
-  vector<string> filenames;
-  glob(dataset, filenames);
+  vector<vector<string>> filenames(2);
+  glob(dataset0, filenames[0]);
+  glob(dataset1, filenames[1]);
   const nlohmann::json j = fromFile("../data/euroc_ds_calib.json");
   cout << T_1_0(j).matrix() << endl;
 
-  vo::OpticalFlowFrameToFrame<float, vo::Pattern51> flow;
+  vo::OpticalFlowFrameToFrame<float, vo::Pattern51> flow(2, T_1_0(j).inverse());
 
-  for (const auto &name : filenames) {
-    Mat img = imread(name, cv::IMREAD_UNCHANGED);
-    flow.processFrame({img});
+  for (size_t i = 0 ; i < filenames[0].size(); i++){
+    Mat img0 = imread(filenames[0][i], cv::IMREAD_UNCHANGED);
+    Mat img1 = imread(filenames[1][i], cv::IMREAD_UNCHANGED);
+    flow.processFrame({img0, img1});
     // imshow("img", img);
-    waitKey(3);
+    waitKey(0);
   }
   return 0;
 }

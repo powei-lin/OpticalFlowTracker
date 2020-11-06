@@ -13,6 +13,8 @@
 #include "optical_flow/patch.h"
 #include "utils/sophus_utils.hpp"
 
+#include <random>
+
 namespace vo {
 
 template <typename Scalar, template <typename> typename Pattern>
@@ -94,6 +96,18 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
       }
 
       observations = new_observations;
+
+      cv::Mat img_show;
+      cv::cvtColor(imgs[0], img_show, cv::COLOR_GRAY2BGR);
+      std::uniform_int_distribution<int> dis(1,255);
+      for(const auto &ob:observations.at(0)){
+        std::mt19937 gen(ob.first);
+        cv::Scalar color(dis(gen), dis(gen), dis(gen));
+        cv::Point2f pt(ob.second.translation().x(), ob.second.translation().y());
+        cv::circle(img_show, pt, 3, color, -1);
+        cv::putText(img_show, std::to_string(ob.first), pt, 1, 1, color);
+      }
+      cv::imshow("add", img_show);
 
       addPoints();
       // filterPoints();

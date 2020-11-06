@@ -21,7 +21,7 @@ int main(){
         Mat img = imread(name, cv::IMREAD_UNCHANGED);
         flow.processFrame({img});
         // imshow("img", img);
-        waitKey(30);
+        waitKey(3);
     }
     return 0;
 }

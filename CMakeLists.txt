@@ -12,6 +12,7 @@ find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 find_package(TBB REQUIRED)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${PROJECT_SOURCE_DIR}/thirdparty)
 include_directories(${PROJECT_SOURCE_DIR}/thirdparty/Sophus)
 include_directories(/usr/local/include)
 

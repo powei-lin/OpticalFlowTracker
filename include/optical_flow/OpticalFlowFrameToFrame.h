@@ -1,12 +1,14 @@
 #pragma once
 
+#define VO_DEBUG
+
 #include <thread>
 
 #include <tbb/blocked_range.h>
 #include <tbb/concurrent_unordered_map.h>
 #include <tbb/parallel_for.h>
-#include <sophus/se2.hpp>
 #include <opencv2/highgui.hpp>
+#include <sophus/se2.hpp>
 
 #include "image/ImageData.h"
 #include "optical_flow/OpticalFlowBase.h"
@@ -51,8 +53,7 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
   }
 
   void processFrame(const std::vector<cv::Mat>& imgs) {
-
-    cv::imshow("sss", imgs[0]);
+    // cv::imshow("sss", imgs[0]);
 
     std::vector<ImageData> imgData;
     MatToImageData(imgs, imgData);
@@ -72,7 +73,6 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
       // filterPoints();
       initialized = true;
     } else {
-
       old_pyramid = pyramid;
 
       pyramid.reset(new std::vector<vo::ManagedImagePyr<u_int16_t>>);
@@ -80,34 +80,35 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
       tbb::parallel_for(tbb::blocked_range<size_t>(0, cam_num),
                         [&](const tbb::blocked_range<size_t>& r) {
                           for (size_t i = r.begin(); i != r.end(); ++i) {
-                            pyramid->at(i).setFromImage(
-                                *imgData[i].img,
-                                optical_flow_levels);
+                            pyramid->at(i).setFromImage(*imgData[i].img,
+                                                        optical_flow_levels);
                           }
                         });
 
       std::vector<Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f>>
-      new_observations(cam_num);
+          new_observations(cam_num);
 
       for (size_t i = 0; i < cam_num; i++) {
-        trackPoints(old_pyramid->at(i), pyramid->at(i),
-                    observations[i],
+        trackPoints(old_pyramid->at(i), pyramid->at(i), observations[i],
                     new_observations[i]);
       }
 
       observations = new_observations;
 
+#ifdef VO_DEBUG
       cv::Mat img_show;
       cv::cvtColor(imgs[0], img_show, cv::COLOR_GRAY2BGR);
-      std::uniform_int_distribution<int> dis(1,255);
-      for(const auto &ob:observations.at(0)){
+      std::uniform_int_distribution<int> dis(1, 255);
+      for (const auto& ob : observations.at(0)) {
         std::mt19937 gen(ob.first);
         cv::Scalar color(dis(gen), dis(gen), dis(gen));
-        cv::Point2f pt(ob.second.translation().x(), ob.second.translation().y());
+        cv::Point2f pt(ob.second.translation().x(),
+                       ob.second.translation().y());
         cv::circle(img_show, pt, 3, color, -1);
         cv::putText(img_show, std::to_string(ob.first), pt, 1, 1, color);
       }
       cv::imshow("add", img_show);
+#endif
 
       addPoints();
       // filterPoints();
@@ -183,8 +184,7 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
 
     transform.linear().setIdentity();
 
-    for (int level = optical_flow_levels; level >= 0 && patch_valid;
-         level--) {
+    for (int level = optical_flow_levels; level >= 0 && patch_valid; level--) {
       const Scalar scale = 1 << level;
 
       transform.translation() /= scale;
@@ -208,8 +208,7 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
     bool patch_valid = true;
 
     for (int iteration = 0;
-         patch_valid && iteration < optical_flow_max_iterations;
-         iteration++) {
+         patch_valid && iteration < optical_flow_max_iterations; iteration++) {
       typename PatchT::VectorP res;
 
       typename PatchT::Matrix2P transformed_pat =

@@ -40,16 +40,16 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 
-#include <opengv/relative_pose/CentralRelativeAdapter.hpp>
-#include <opengv/relative_pose/methods.hpp>
-#include <opengv/sac/Ransac.hpp>
+// #include <opengv/relative_pose/CentralRelativeAdapter.hpp>
+// #include <opengv/relative_pose/methods.hpp>
+// #include <opengv/sac/Ransac.hpp>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#include <opengv/sac_problems/relative_pose/CentralRelativePoseSacProblem.hpp>
-#pragma GCC diagnostic pop
+// #pragma GCC diagnostic push
+// #pragma GCC diagnostic ignored "-Wunused-parameter"
+// #include <opengv/sac_problems/relative_pose/CentralRelativePoseSacProblem.hpp>
+// #pragma GCC diagnostic pop
 
-namespace basalt {
+namespace vo {
 
 // const int PATCH_SIZE = 31;
 const int HALF_PATCH_SIZE = 15;
@@ -133,7 +133,7 @@ const static char pattern_31_y_b[256] = {
     -9,  -1,  -2,  -8,  5,   10,  5,   5,   11,  -6,  -12, 9,   4,   -2, -2,
     -11};
 
-void detectKeypointsMapping(const basalt::Image<const uint16_t>& img_raw,
+void detectKeypointsMapping(const vo::Image<const uint16_t>& img_raw,
                             KeypointsData& kd, int num_features) {
   cv::Mat image(img_raw.h, img_raw.w, CV_8U);
 
@@ -159,7 +159,7 @@ void detectKeypointsMapping(const basalt::Image<const uint16_t>& img_raw,
 }
 
 void detectKeypoints(
-    const basalt::Image<const uint16_t>& img_raw, KeypointsData& kd,
+    const vo::Image<const uint16_t>& img_raw, KeypointsData& kd,
     int PATCH_SIZE, int num_points_cell,
     const Eigen::aligned_vector<Eigen::Vector2d>& current_points) {
   kd.corners.clear();
@@ -192,7 +192,7 @@ void detectKeypoints(
       if (cells((y - y_start) / PATCH_SIZE, (x - x_start) / PATCH_SIZE) > 0)
         continue;
 
-      const basalt::Image<const uint16_t> sub_img_raw =
+      const vo::Image<const uint16_t> sub_img_raw =
           img_raw.SubImage(x, y, PATCH_SIZE, PATCH_SIZE);
 
       cv::Mat subImg(PATCH_SIZE, PATCH_SIZE, CV_8U);
@@ -248,7 +248,7 @@ void detectKeypoints(
   //  }
 }
 
-void computeAngles(const basalt::Image<const uint16_t>& img_raw,
+void computeAngles(const vo::Image<const uint16_t>& img_raw,
                    KeypointsData& kd, bool rotate_features) {
   kd.corner_angles.resize(kd.corners.size());
 
@@ -279,7 +279,7 @@ void computeAngles(const basalt::Image<const uint16_t>& img_raw,
   }
 }
 
-void computeDescriptors(const basalt::Image<const uint16_t>& img_raw,
+void computeDescriptors(const vo::Image<const uint16_t>& img_raw,
                         KeypointsData& kd) {
   kd.corner_descriptors.resize(kd.corners.size());
 
@@ -358,70 +358,70 @@ void matchDescriptors(const std::vector<std::bitset<256>>& corner_descriptors_1,
   }
 }
 
-void findInliersRansac(const KeypointsData& kd1, const KeypointsData& kd2,
-                       const double ransac_thresh, const int ransac_min_inliers,
-                       MatchData& md) {
-  md.inliers.clear();
+// void findInliersRansac(const KeypointsData& kd1, const KeypointsData& kd2,
+//                        const double ransac_thresh, const int ransac_min_inliers,
+//                        MatchData& md) {
+//   md.inliers.clear();
 
-  opengv::bearingVectors_t bearingVectors1, bearingVectors2;
+//   opengv::bearingVectors_t bearingVectors1, bearingVectors2;
 
-  for (size_t i = 0; i < md.matches.size(); i++) {
-    bearingVectors1.push_back(kd1.corners_3d[md.matches[i].first].head<3>());
-    bearingVectors2.push_back(kd2.corners_3d[md.matches[i].second].head<3>());
-  }
+//   for (size_t i = 0; i < md.matches.size(); i++) {
+//     bearingVectors1.push_back(kd1.corners_3d[md.matches[i].first].head<3>());
+//     bearingVectors2.push_back(kd2.corners_3d[md.matches[i].second].head<3>());
+//   }
 
-  // create the central relative adapter
-  opengv::relative_pose::CentralRelativeAdapter adapter(bearingVectors1,
-                                                        bearingVectors2);
-  // create a RANSAC object
-  opengv::sac::Ransac<
-      opengv::sac_problems::relative_pose::CentralRelativePoseSacProblem>
-      ransac;
-  // create a CentralRelativePoseSacProblem
-  // (set algorithm to STEWENIUS, NISTER, SEVENPT, or EIGHTPT)
-  std::shared_ptr<
-      opengv::sac_problems::relative_pose::CentralRelativePoseSacProblem>
-      relposeproblem_ptr(
-          new opengv::sac_problems::relative_pose::
-              CentralRelativePoseSacProblem(
-                  adapter, opengv::sac_problems::relative_pose::
-                               CentralRelativePoseSacProblem::STEWENIUS));
-  // run ransac
-  ransac.sac_model_ = relposeproblem_ptr;
-  ransac.threshold_ = ransac_thresh;
-  ransac.max_iterations_ = 100;
-  ransac.computeModel();
+//   // create the central relative adapter
+//   opengv::relative_pose::CentralRelativeAdapter adapter(bearingVectors1,
+//                                                         bearingVectors2);
+//   // create a RANSAC object
+//   opengv::sac::Ransac<
+//       opengv::sac_problems::relative_pose::CentralRelativePoseSacProblem>
+//       ransac;
+//   // create a CentralRelativePoseSacProblem
+//   // (set algorithm to STEWENIUS, NISTER, SEVENPT, or EIGHTPT)
+//   std::shared_ptr<
+//       opengv::sac_problems::relative_pose::CentralRelativePoseSacProblem>
+//       relposeproblem_ptr(
+//           new opengv::sac_problems::relative_pose::
+//               CentralRelativePoseSacProblem(
+//                   adapter, opengv::sac_problems::relative_pose::
+//                                CentralRelativePoseSacProblem::STEWENIUS));
+//   // run ransac
+//   ransac.sac_model_ = relposeproblem_ptr;
+//   ransac.threshold_ = ransac_thresh;
+//   ransac.max_iterations_ = 100;
+//   ransac.computeModel();
 
-  // do non-linear refinement and add more inliers
-  const size_t num_inliers_ransac = ransac.inliers_.size();
+//   // do non-linear refinement and add more inliers
+//   const size_t num_inliers_ransac = ransac.inliers_.size();
 
-  adapter.sett12(ransac.model_coefficients_.topRightCorner<3, 1>());
-  adapter.setR12(ransac.model_coefficients_.topLeftCorner<3, 3>());
+//   adapter.sett12(ransac.model_coefficients_.topRightCorner<3, 1>());
+//   adapter.setR12(ransac.model_coefficients_.topLeftCorner<3, 3>());
 
-  const opengv::transformation_t nonlinear_transformation =
-      opengv::relative_pose::optimize_nonlinear(adapter, ransac.inliers_);
+//   const opengv::transformation_t nonlinear_transformation =
+//       opengv::relative_pose::optimize_nonlinear(adapter, ransac.inliers_);
 
-  ransac.sac_model_->selectWithinDistance(nonlinear_transformation,
-                                          ransac.threshold_, ransac.inliers_);
+//   ransac.sac_model_->selectWithinDistance(nonlinear_transformation,
+//                                           ransac.threshold_, ransac.inliers_);
 
-  // Sanity check if the number of inliers decreased, but only warn if it is
-  // by 3 or more, since some small fluctuation is expected.
-  if (ransac.inliers_.size() + 2 < num_inliers_ransac) {
-    std::cout << "Warning: non-linear refinement reduced the relative pose "
-                 "ransac inlier count from "
-              << num_inliers_ransac << " to " << ransac.inliers_.size() << "."
-              << std::endl;
-  }
+//   // Sanity check if the number of inliers decreased, but only warn if it is
+//   // by 3 or more, since some small fluctuation is expected.
+//   if (ransac.inliers_.size() + 2 < num_inliers_ransac) {
+//     std::cout << "Warning: non-linear refinement reduced the relative pose "
+//                  "ransac inlier count from "
+//               << num_inliers_ransac << " to " << ransac.inliers_.size() << "."
+//               << std::endl;
+//   }
 
-  // get the result (normalize translation)
-  md.T_i_j = Sophus::SE3d(
-      nonlinear_transformation.topLeftCorner<3, 3>(),
-      nonlinear_transformation.topRightCorner<3, 1>().normalized());
+//   // get the result (normalize translation)
+//   md.T_i_j = Sophus::SE3d(
+//       nonlinear_transformation.topLeftCorner<3, 3>(),
+//       nonlinear_transformation.topRightCorner<3, 1>().normalized());
 
-  if ((long)ransac.inliers_.size() >= ransac_min_inliers) {
-    for (size_t i = 0; i < ransac.inliers_.size(); i++)
-      md.inliers.emplace_back(md.matches[ransac.inliers_[i]]);
-  }
-}
+//   if ((long)ransac.inliers_.size() >= ransac_min_inliers) {
+//     for (size_t i = 0; i < ransac.inliers_.size(); i++)
+//       md.inliers.emplace_back(md.matches[ransac.inliers_[i]]);
+//   }
+// }
 
 }  // namespace basalt

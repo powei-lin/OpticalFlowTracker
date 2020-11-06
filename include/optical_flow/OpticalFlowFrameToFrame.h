@@ -6,9 +6,9 @@
 #include <tbb/concurrent_unordered_map.h>
 #include <tbb/parallel_for.h>
 #include <sophus/se2.hpp>
+#include <opencv2/highgui.hpp>
 
 #include "image/ImageData.h"
-#include "image/image_pyr.h"
 #include "optical_flow/OpticalFlowBase.h"
 #include "optical_flow/patch.h"
 #include "utils/sophus_utils.hpp"
@@ -49,6 +49,9 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
   }
 
   void processFrame(const std::vector<cv::Mat>& imgs) {
+
+    cv::imshow("sss", imgs[0]);
+
     std::vector<ImageData> imgData;
     MatToImageData(imgs, imgData);
     if (!initialized) {
@@ -57,13 +60,12 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
       tbb::parallel_for(tbb::blocked_range<size_t>(0, cam_num),
                         [&](const tbb::blocked_range<size_t>& r) {
                           for (size_t i = r.begin(); i != r.end(); ++i) {
-                            pyramid->at(i).setFromImage(
-                                *imgData[i].img,
-                                optical_flow_levels);
+                            pyramid->at(i).setFromImage(*imgData[i].img,
+                                                        optical_flow_levels);
                           }
                         });
 
-      addPoints();
+      // addPoints();
       // filterPoints();
       initialized = true;
     } else {
@@ -74,35 +76,36 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
     Eigen::aligned_vector<Eigen::Vector2d> pts0;
 
     for (const auto& kv : observations.at(0)) {
-      pts0.emplace_back(kv.second.translation().cast<double>());
+      std::cout << kv.second.translation() << std::endl;
+      // pts0.emplace_back(kv.second.translation().cast<double>());
     }
 
     KeypointsData kd;
 
-    detectKeypoints(pyramid->at(0).lvl(0), kd,
-                    optical_flow_detection_grid_size, 1, pts0);
+    // detectKeypoints(pyramid->at(0).lvl(0), kd, optical_flow_detection_grid_size,
+    //                 1, pts0);
 
-    Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f> new_poses0,
-        new_poses1;
+    // Eigen::aligned_map<KeypointId, Eigen::AffineCompact2f> new_poses0,
+    //     new_poses1;
 
-    for (size_t i = 0; i < kd.corners.size(); i++) {
-      Eigen::AffineCompact2f transform;
-      transform.setIdentity();
-      transform.translation() = kd.corners[i].cast<Scalar>();
+    // for (size_t i = 0; i < kd.corners.size(); i++) {
+    //   Eigen::AffineCompact2f transform;
+    //   transform.setIdentity();
+    //   transform.translation() = kd.corners[i].cast<Scalar>();
 
-      transforms->observations.at(0)[last_keypoint_id] = transform;
-      new_poses0[last_keypoint_id] = transform;
+    //   observations.at(0)[last_keypoint_id] = transform;
+    //   new_poses0[last_keypoint_id] = transform;
 
-      last_keypoint_id++;
-    }
+    //   last_keypoint_id++;
+    // }
 
-    if (cam_num > 1) {
-      trackPoints(pyramid->at(0), pyramid->at(1), new_poses0, new_poses1);
+    // if (cam_num > 1) {
+    //   trackPoints(pyramid->at(0), pyramid->at(1), new_poses0, new_poses1);
 
-      for (const auto& kv : new_poses1) {
-        transforms->observations.at(1).emplace(kv);
-      }
-    }
+    //   for (const auto& kv : new_poses1) {
+    //     transforms->observations.at(1).emplace(kv);
+    //   }
+    // }
   }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW

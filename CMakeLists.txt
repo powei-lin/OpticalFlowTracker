@@ -9,15 +9,17 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")                                     
 
 find_package(OpenCV REQUIRED)
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+find_package(TBB REQUIRED)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${PROJECT_SOURCE_DIR}/thirdparty/Sophus)
+include_directories(/usr/local/include)
 
 include(CTest)
 enable_testing()
 
 add_executable(OpticalFlowTracker example.cpp)
-target_link_libraries(OpticalFlowTracker ${OpenCV_LIBS} Eigen3::Eigen)
+target_link_libraries(OpticalFlowTracker ${OpenCV_LIBS} Eigen3::Eigen TBB::tbb)
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

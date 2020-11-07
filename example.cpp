@@ -19,15 +19,19 @@ nlohmann::json fromFile(const string &filename) {
   return j;
 }
 
-Sophus::SE3f T_1_0(const nlohmann::json &j){
+Sophus::SE3f T_1_0(const nlohmann::json &j) {
   Sophus::SE3f T_imu_0;
   auto &cam0 = j.at("value0").at("T_imu_cam").at(0);
-  T_imu_0.translation() = Eigen::Vector3f(cam0.at("px"),cam0.at("py"),cam0.at("pz"));
-  T_imu_0.so3().setQuaternion(Eigen::Quaternionf(cam0.at("qw"),cam0.at("qx"),cam0.at("qy"),cam0.at("qz")));
+  T_imu_0.translation() =
+      Eigen::Vector3f(cam0.at("px"), cam0.at("py"), cam0.at("pz"));
+  T_imu_0.so3().setQuaternion(Eigen::Quaternionf(cam0.at("qw"), cam0.at("qx"),
+                                                 cam0.at("qy"), cam0.at("qz")));
   Sophus::SE3f T_imu_1;
   auto &cam1 = j.at("value0").at("T_imu_cam").at(1);
-  T_imu_1.translation() = Eigen::Vector3f(cam1.at("px"),cam1.at("py"),cam1.at("pz"));
-  T_imu_1.so3().setQuaternion(Eigen::Quaternionf(cam1.at("qw"),cam1.at("qx"),cam1.at("qy"),cam1.at("qz")));
+  T_imu_1.translation() =
+      Eigen::Vector3f(cam1.at("px"), cam1.at("py"), cam1.at("pz"));
+  T_imu_1.so3().setQuaternion(Eigen::Quaternionf(cam1.at("qw"), cam1.at("qx"),
+                                                 cam1.at("qy"), cam1.at("qz")));
   return T_imu_1.inverse() * T_imu_0;
 }
 
@@ -45,7 +49,7 @@ int main() {
 
   vo::OpticalFlowFrameToFrame<float, vo::Pattern51> flow(2, T_1_0(j).inverse());
 
-  for (size_t i = 0 ; i < filenames[0].size(); i++){
+  for (size_t i = 0; i < filenames[0].size(); i++) {
     Mat img0 = imread(filenames[0][i], cv::IMREAD_UNCHANGED);
     Mat img1 = imread(filenames[1][i], cv::IMREAD_UNCHANGED);
     flow.processFrame({img0, img1});

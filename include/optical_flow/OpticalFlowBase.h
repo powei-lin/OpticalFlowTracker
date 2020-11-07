@@ -71,10 +71,27 @@ class OpticalFlowBase {
                       return a.response > b.response;
                     });
 
-          //        std::cout << "Detected " << points.size() << " points.
-          //        Threshold "
-          //                  << threshold << std::endl;
-
+// #define USE_CORNER_SUBPIX
+#ifdef USE_CORNER_SUBPIX
+          if (points.size() > 0) {
+            std::vector<cv::Point2f> subcorner_pts;
+            cv::KeyPoint::convert(points, subcorner_pts);
+            cv::TermCriteria criteria = cv::TermCriteria(
+                cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 40, 0.01);
+            cv::Size winSize = cv::Size(5, 5);
+            cv::Size zeroZone = cv::Size(-1, -1);
+            cv::cornerSubPix(subImg, subcorner_pts, winSize, zeroZone,
+                             criteria);
+      
+          for (size_t i = 0;
+               i < subcorner_pts.size() && points_added < num_points_cell; i++)
+            if (img_raw.InBounds(x + subcorner_pts[i].x, y + subcorner_pts[i].y,
+                                 EDGE_THRESHOLD)) {
+              kd.corners.emplace_back(x + subcorner_pts[i].x, y + subcorner_pts[i].y);
+              points_added++;
+            }
+          }
+#else
           for (size_t i = 0;
                i < points.size() && points_added < num_points_cell; i++)
             if (img_raw.InBounds(x + points[i].pt.x, y + points[i].pt.y,
@@ -82,6 +99,7 @@ class OpticalFlowBase {
               kd.corners.emplace_back(x + points[i].pt.x, y + points[i].pt.y);
               points_added++;
             }
+#endif
 
           threshold /= 2;
         }

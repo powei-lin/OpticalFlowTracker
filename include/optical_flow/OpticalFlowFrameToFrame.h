@@ -37,8 +37,12 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
   typedef Sophus::SE2<Scalar> SE2;
   typedef Sophus::SE3<Scalar> SE3;
 
-  OpticalFlowFrameToFrame(uint8_t _cam_num = 1, const SE3 &_T_0_1 = SE3())
-      : t_ns(-1), frame_counter(0), last_keypoint_id(0), cam_num(_cam_num), T_0_1(_T_0_1) {
+  OpticalFlowFrameToFrame(uint8_t _cam_num = 1, const SE3& _T_0_1 = SE3())
+      : t_ns(-1),
+        frame_counter(0),
+        last_keypoint_id(0),
+        cam_num(_cam_num),
+        T_0_1(_T_0_1) {
     // input_queue.set_capacity(10);
 
     // patch_coord = PatchT::pattern2.template cast<float>();
@@ -46,14 +50,16 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
     // if (calib.intrinsics.size() > 1) {
     //   Eigen::Matrix4d Ed;
     //   Sophus::SE3d T_i_j = calib.T_i_c[0].inverse() * calib.T_i_c[1];
-      // computeEssential(T_i_j, Ed);
-      // E.setZero();
-      
-  // const Eigen::Vector3d t_0_1 = T_0_1.translation();
-  // const Eigen::Matrix3d R_0_1 = T_0_1.rotationMatrix();
-    E.template topLeftCorner<3, 3>() = Sophus::SO3<Scalar>::hat(T_0_1.translation().normalized()) * T_0_1.rotationMatrix();
-  // E.topLeftCorner<3, 3>() = Sophus::SO3d::hat(t_0_1.normalized()) * R_0_1;
-      // E = Ed.cast<Scalar>();
+    // computeEssential(T_i_j, Ed);
+    // E.setZero();
+
+    // const Eigen::Vector3d t_0_1 = T_0_1.translation();
+    // const Eigen::Matrix3d R_0_1 = T_0_1.rotationMatrix();
+    E.template topLeftCorner<3, 3>() =
+        Sophus::SO3<Scalar>::hat(T_0_1.translation().normalized()) *
+        T_0_1.rotationMatrix();
+    // E.topLeftCorner<3, 3>() = Sophus::SO3d::hat(t_0_1.normalized()) * R_0_1;
+    // E = Ed.cast<Scalar>();
     // }
 
     // processing_thread.reset(
@@ -104,27 +110,26 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
       observations = new_observations;
 
 #ifdef VO_DEBUG
-    cv::Mat allcamshow;
-    for(int cam = 0 ; cam < cam_num;cam++){
-      cv::Mat img_show;
-      cv::cvtColor(imgs[cam], img_show, cv::COLOR_GRAY2BGR);
-      std::uniform_int_distribution<int> dis(1, 255);
-      for (const auto& ob : observations.at(cam)) {
-        std::mt19937 gen(ob.first);
-        cv::Scalar color(dis(gen), dis(gen), dis(gen));
-        cv::Point2f pt(ob.second.translation().x(),
-                       ob.second.translation().y());
-        cv::circle(img_show, pt, 3, color, -1);
-        cv::putText(img_show, std::to_string(ob.first), pt, 1, 1, color);
+      cv::Mat allcamshow;
+      for (int cam = 0; cam < cam_num; cam++) {
+        cv::Mat img_show;
+        cv::cvtColor(imgs[cam], img_show, cv::COLOR_GRAY2BGR);
+        std::uniform_int_distribution<int> dis(1, 255);
+        for (const auto& ob : observations.at(cam)) {
+          std::mt19937 gen(ob.first);
+          cv::Scalar color(dis(gen), dis(gen), dis(gen));
+          cv::Point2f pt(ob.second.translation().x(),
+                         ob.second.translation().y());
+          cv::circle(img_show, pt, 3, color, -1);
+          cv::putText(img_show, std::to_string(ob.first), pt, 1, 1, color);
+        }
+        if (cam == 0) {
+          allcamshow = img_show;
+        } else {
+          cv::hconcat(allcamshow, img_show, allcamshow);
+        }
       }
-      if(cam == 0){
-        allcamshow = img_show;
-      }
-      else{
-        cv::hconcat(allcamshow, img_show, allcamshow);
-      }
-    }
-    cv::imshow("add", allcamshow);
+      cv::imshow("add", allcamshow);
 #endif
 
       addPoints();
@@ -284,12 +289,55 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
     }
   }
 
+  // void filterPoints() {
+  //   if (cam_num < 2) return;
+
+  //   std::set<KeypointId> lm_to_remove;
+
+  //   std::vector<KeypointId> kpid;
+  //   Eigen::aligned_vector<Eigen::Vector2f> proj0, proj1;
+
+  //   for (const auto& kv : observations.at(1)) {
+  //     auto it = observations.at(0).find(kv.first);
+
+  //     if (it != observations.at(0).end()) {
+  //       proj0.emplace_back(it->second.translation());
+  //       proj1.emplace_back(kv.second.translation());
+  //       kpid.emplace_back(kv.first);
+  //     }
+  //   }
+
+  //   Eigen::aligned_vector<Eigen::Vector4f> p3d0, p3d1;
+  //   std::vector<bool> p3d0_success, p3d1_success;
+
+  //   // calib.intrinsics[0].unproject(proj0, p3d0, p3d0_success);
+  //   // calib.intrinsics[1].unproject(proj1, p3d1, p3d1_success);
+
+  //   for (size_t i = 0; i < p3d0_success.size(); i++) {
+  //     if (p3d0_success[i] && p3d1_success[i]) {
+  //       const double epipolar_error =
+  //           std::abs(p3d0[i].transpose() * E * p3d1[i]);
+
+  //       if (epipolar_error > optical_flow_epipolar_error) {
+  //         lm_to_remove.emplace(kpid[i]);
+  //       }
+  //     } else {
+  //       lm_to_remove.emplace(kpid[i]);
+  //     }
+  //   }
+
+  //   for (int id : lm_to_remove) {
+  //     observations.at(1).erase(id);
+  //   }
+  // }
+
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
  private:
   static constexpr uint8_t optical_flow_detection_grid_size = 50;
   static constexpr float optical_flow_max_recovered_dist2 = 0.04;
   static constexpr uint8_t optical_flow_max_iterations = 5;
   static constexpr uint8_t optical_flow_levels = 3;
+  static constexpr float optical_flow_epipolar_error = 0.005;
   int64_t t_ns;
 
   uint64_t frame_counter;

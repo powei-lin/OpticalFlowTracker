@@ -66,12 +66,11 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
     //     new std::thread(&FrameToFrameOpticalFlow::processingLoop, this));
   }
 
-  cv::Mat processFrame(const std::vector<cv::Mat>& imgs) {
+  void processFrame(const std::vector<cv::Mat>& imgs) {
     // cv::imshow("sss", imgs[0]);
 
     std::vector<ImageData> imgData;
     MatToImageData(imgs, imgData);
-    cv::Mat allcamshow;
     if (!initialized) {
       observations.resize(cam_num);
       pyramid.reset(new std::vector<ManagedImagePyr<u_int16_t>>);
@@ -111,6 +110,7 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
       observations = new_observations;
 
 #ifdef VO_DEBUG
+      cv::Mat allcamshow;
       for (int cam = 0; cam < cam_num; cam++) {
         cv::Mat img_show;
         cv::cvtColor(imgs[cam], img_show, cv::COLOR_GRAY2BGR);
@@ -129,6 +129,7 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
           cv::hconcat(allcamshow, img_show, allcamshow);
         }
       }
+      cv::imshow("add", allcamshow);
 #endif
 
       addPoints();
@@ -136,8 +137,7 @@ class OpticalFlowFrameToFrame : public OpticalFlowBase {
     }
 
     frame_counter++;
-      // cv::imshow("add", allcamshow);
-    return allcamshow;
+    // return allcamshow;
   }
 
   void trackPoints(const vo::ManagedImagePyr<u_int16_t>& pyr_1,

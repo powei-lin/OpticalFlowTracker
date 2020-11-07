@@ -49,20 +49,13 @@ int main() {
 
   vo::OpticalFlowFrameToFrame<float, vo::Pattern51> flow(2, T_1_0(j).inverse());
 
-  VideoWriter video("./outcpp.avi", cv::VideoWriter::fourcc('M','J','P','G'), 10, Size(1504, 480));
   for (size_t i = 0; i < filenames[0].size(); i++) {
     Mat img0 = imread(filenames[0][i], cv::IMREAD_UNCHANGED);
     Mat img1 = imread(filenames[1][i], cv::IMREAD_UNCHANGED);
-    Mat show  = flow.processFrame({img0, img1});
-    if(i>100){
-      cout << show.size() << endl;
-      imshow("track", show);
-      video.write(show);
-    }
+    flow.processFrame({img0, img1});
     waitKey(1);
-    if(i>1000)
-      break;
+    // if(i>1000)
+    //   break;
   }
-  video.release();
   return 0;
 }

@@ -82,14 +82,16 @@ class OpticalFlowBase {
             cv::Size zeroZone = cv::Size(-1, -1);
             cv::cornerSubPix(subImg, subcorner_pts, winSize, zeroZone,
                              criteria);
-      
-          for (size_t i = 0;
-               i < subcorner_pts.size() && points_added < num_points_cell; i++)
-            if (img_raw.InBounds(x + subcorner_pts[i].x, y + subcorner_pts[i].y,
-                                 EDGE_THRESHOLD)) {
-              kd.corners.emplace_back(x + subcorner_pts[i].x, y + subcorner_pts[i].y);
-              points_added++;
-            }
+
+            for (size_t i = 0;
+                 i < subcorner_pts.size() && points_added < num_points_cell;
+                 i++)
+              if (img_raw.InBounds(x + subcorner_pts[i].x,
+                                   y + subcorner_pts[i].y, EDGE_THRESHOLD)) {
+                kd.corners.emplace_back(x + subcorner_pts[i].x,
+                                        y + subcorner_pts[i].y);
+                points_added++;
+              }
           }
 #else
           for (size_t i = 0;

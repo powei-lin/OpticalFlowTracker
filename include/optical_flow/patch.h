@@ -65,29 +65,63 @@ struct OpticalFlowPatch {
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  OpticalFlowPatch() { mean = 0; }
+  OpticalFlowPatch() = default;
 
   OpticalFlowPatch(const Image<const uint16_t> &img, const Vector2 &pos) {
     setFromImage(img, pos);
   }
 
-  void setFromImage(const Image<const uint16_t> &img, const Vector2 &pos) {
-    this->pos = pos;
-
+  template <typename ImgT>
+  static void setData(const ImgT &img, const Vector2 &pos, Scalar &mean,
+                      VectorP &data, const Sophus::SE2<Scalar> *se2 = nullptr) {
     int num_valid_points = 0;
     Scalar sum = 0;
-    Vector2 grad_sum(0, 0);
 
-    MatrixP2 grad;
+    for (int i = 0; i < PATTERN_SIZE; i++) {
+      Vector2 p;
+      if (se2) {
+        p = pos + (*se2) * pattern2.col(i);
+      } else {
+        p = pos + pattern2.col(i);
+      };
+
+      if (img.InBounds(p, 2)) {
+        Scalar val = img.template interp<Scalar>(p);
+        data[i] = val;
+        sum += val;
+        num_valid_points++;
+      } else {
+        data[i] = -1;
+      }
+    }
+
+    mean = sum / num_valid_points;
+    data /= mean;
+  }
+
+  template <typename ImgT>
+  static void setDataJacSe2(const ImgT &img, const Vector2 &pos, Scalar &mean,
+                            VectorP &data, MatrixP3 &J_se2) {
+    int num_valid_points = 0;
+    Scalar sum = 0;
+    Vector3 grad_sum_se2(0, 0, 0);
+
+    Eigen::Matrix<Scalar, 2, 3> Jw_se2;
+    Jw_se2.template topLeftCorner<2, 2>().setIdentity();
 
     for (int i = 0; i < PATTERN_SIZE; i++) {
       Vector2 p = pos + pattern2.col(i);
+
+      // Fill jacobians with respect to SE2 warp
+      Jw_se2(0, 2) = -pattern2(1, i);
+      Jw_se2(1, 2) = pattern2(0, i);
+
       if (img.InBounds(p, 2)) {
-        Vector3 valGrad = img.interpGrad<Scalar>(p);
+        Vector3 valGrad = img.template interpGrad<Scalar>(p);
         data[i] = valGrad[0];
         sum += valGrad[0];
-        grad.row(i) = valGrad.template tail<2>();
-        grad_sum += valGrad.template tail<2>();
+        J_se2.row(i) = valGrad.template tail<2>().transpose() * Jw_se2;
+        grad_sum_se2 += J_se2.row(i);
         num_valid_points++;
       } else {
         data[i] = -1;
@@ -96,30 +130,25 @@ struct OpticalFlowPatch {
 
     mean = sum / num_valid_points;
 
-    Scalar mean_inv = num_valid_points / sum;
-
-    Eigen::Matrix<Scalar, 2, 3> Jw_se2;
-    Jw_se2.template topLeftCorner<2, 2>().setIdentity();
-
-    MatrixP3 J_se2;
+    const Scalar mean_inv = num_valid_points / sum;
 
     for (int i = 0; i < PATTERN_SIZE; i++) {
       if (data[i] >= 0) {
-        const Scalar data_i = data[i];
-        const Vector2 grad_i = grad.row(i);
-        grad.row(i) =
-            num_valid_points * (grad_i * sum - grad_sum * data_i) / (sum * sum);
-
+        J_se2.row(i) -= grad_sum_se2.transpose() * data[i] / sum;
         data[i] *= mean_inv;
       } else {
-        grad.row(i).setZero();
+        J_se2.row(i).setZero();
       }
-
-      // Fill jacobians with respect to SE2 warp
-      Jw_se2(0, 2) = -pattern2(1, i);
-      Jw_se2(1, 2) = pattern2(0, i);
-      J_se2.row(i) = grad.row(i) * Jw_se2;
     }
+    J_se2 *= mean_inv;
+  }
+
+  void setFromImage(const Image<const uint16_t> &img, const Vector2 &pos) {
+    this->pos = pos;
+
+    MatrixP3 J_se2;
+
+    setDataJacSe2(img, pos, mean, data, J_se2);
 
     Matrix3 H_se2 = J_se2.transpose() * J_se2;
     Matrix3 H_se2_inv;
@@ -127,13 +156,22 @@ struct OpticalFlowPatch {
     H_se2.ldlt().solveInPlace(H_se2_inv);
 
     H_se2_inv_J_se2_T = H_se2_inv * J_se2.transpose();
+
+    // NOTE: while it's very unlikely we get a source patch with all black
+    // pixels, since points are usually selected at corners, it doesn't cost
+    // much to be safe here.
+
+    // all-black patch cannot be normalized; will result in mean of "zero" and
+    // H_se2_inv_J_se2_T will contain "NaN" and data will contain "inf"
+    valid = mean > std::numeric_limits<Scalar>::epsilon() &&
+            H_se2_inv_J_se2_T.array().isFinite().all() &&
+            data.array().isFinite().all();
   }
 
   inline bool residual(const Image<const uint16_t> &img,
                        const Matrix2P &transformed_pattern,
                        VectorP &residual) const {
     Scalar sum = 0;
-    Vector2 grad_sum(0, 0);
     int num_valid_points = 0;
 
     for (int i = 0; i < PATTERN_SIZE; i++) {
@@ -144,6 +182,12 @@ struct OpticalFlowPatch {
       } else {
         residual[i] = -1;
       }
+    }
+
+    // all-black patch cannot be normalized
+    if (sum < std::numeric_limits<Scalar>::epsilon()) {
+      residual.setZero();
+      return false;
     }
 
     int num_residuals = 0;
@@ -162,14 +206,16 @@ struct OpticalFlowPatch {
     return num_residuals > PATTERN_SIZE / 2;
   }
 
-  Vector2 pos;
-  VectorP data;  // negative if the point is not valid
+  Vector2 pos = Vector2::Zero();
+  VectorP data = VectorP::Zero();  // negative if the point is not valid
 
   // MatrixP3 J_se2;  // total jacobian with respect to se2 warp
   // Matrix3 H_se2_inv;
-  Matrix3P H_se2_inv_J_se2_T;
+  Matrix3P H_se2_inv_J_se2_T = Matrix3P::Zero();
 
-  Scalar mean;
+  Scalar mean = 0;
+
+  bool valid = false;
 };
 
 template <typename Scalar, typename Pattern>
